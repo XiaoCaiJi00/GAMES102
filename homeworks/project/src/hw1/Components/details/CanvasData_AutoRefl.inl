@@ -26,6 +26,12 @@ struct Ubpa::USRefl::TypeInfo<CanvasData> :
         Field {TSTR("adding_line"), &Type::adding_line, AttrList {
             Attr {TSTR(UMeta::initializer), []()->bool{ return { false }; }},
         }},
+        Field {TSTR("m_bCurPolynomialInterpolation"), &Type::m_bCurPolynomialInterpolation, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return false; }},
+        }},
+        Field {TSTR("m_bCurGuassBasicInterpolation"), &Type::m_bCurGuassBasicInterpolation, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return false; }},
+        }},
     };
 };
 

@@ -1,6 +1,6 @@
-#include "CanvasSystem.h"
+﻿#include "CanvasSystem.h"
 
-#include <_deps/imgui/imgui.h>
+
 #include <Eigen/Dense>
 #include <spdlog/spdlog.h>
 
@@ -53,7 +53,7 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 			ImGui::SetNextItemWidth(100.0f);
 			if (ImGui::InputInt("##ridge degree", &data->m_RidgeRegressionFittingDegree, 1, 5))
 			{
-				data->m_RidgeRegressionFittingDegree = std::max(3, data->m_RidgeRegressionFittingDegree);
+				data->m_RidgeRegressionFittingDegree = std::max(1, data->m_RidgeRegressionFittingDegree);
 			}
 			ImGui::SameLine();
 			ImGui::Text("ridge lambda");
@@ -146,7 +146,7 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 				if (ImGui::MenuItem("Remove all", NULL, false, data->points.size() > 0))
 				{ 
 					data->points.clear(); 
-					data->m_bReCalculate = true;
+					data->m_bReCalculate = true; 
 				}
 				ImGui::EndPopup();
 			}
@@ -188,39 +188,43 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 			}
 			if (data->m_bCurPolynomialInterpolation && !data->m_polynomialInterpolationPoints.empty())
 			{
-				for (int n = 0; n < data->m_polynomialInterpolationPoints.size() - 1; ++n)
+				drawCurve(data->m_polynomialInterpolationPoints, draw_list, origin, IM_COL32(255, 0, 0, 255));
+				/*for (int n = 0; n < data->m_polynomialInterpolationPoints.size() - 1; ++n)
 				{
 					draw_list->AddLine(ImVec2(origin.x + data->m_polynomialInterpolationPoints[n][0], origin.y + data->m_polynomialInterpolationPoints[n][1]), 
 														 ImVec2(origin.x + data->m_polynomialInterpolationPoints[n + 1][0], origin.y + data->m_polynomialInterpolationPoints[n + 1][1]), 
 														 IM_COL32(0, 255, 0, 255), 2.0f);
-				}
+				}*/
 			}
 			if (data->m_bCurGuassBasicInterpolation && !data->m_guassBasicInterpolationPoints.empty())
 			{
-				for (int n = 0; n < data->m_guassBasicInterpolationPoints.size() - 1; ++n)
+				drawCurve(data->m_guassBasicInterpolationPoints, draw_list, origin, IM_COL32(0, 255, 0, 255));
+				/*for (int n = 0; n < data->m_guassBasicInterpolationPoints.size() - 1; ++n)
 				{
 					draw_list->AddLine(ImVec2(origin.x + data->m_guassBasicInterpolationPoints[n][0], origin.y + data->m_guassBasicInterpolationPoints[n][1]),
 						ImVec2(origin.x + data->m_guassBasicInterpolationPoints[n + 1][0], origin.y + data->m_guassBasicInterpolationPoints[n + 1][1]),
 						IM_COL32(0, 0, 255, 255), 2.0f);
-        }
+        }*/
 			}
 			if (data->m_bCurPolynomialFitting && !data->m_polynomialFittingPoints.empty())
 			{
-				for (int n = 0; n < data->m_polynomialFittingPoints.size() - 1; ++n)
+				drawCurve(data->m_polynomialFittingPoints, draw_list, origin, IM_COL32(0, 0, 255, 255));
+				/*for (int n = 0; n < data->m_polynomialFittingPoints.size() - 1; ++n)
 				{
 					draw_list->AddLine(ImVec2(origin.x + data->m_polynomialFittingPoints[n][0], origin.y + data->m_polynomialFittingPoints[n][1]),
 						ImVec2(origin.x + data->m_polynomialFittingPoints[n + 1][0], origin.y + data->m_polynomialFittingPoints[n + 1][1]),
 						IM_COL32(0, 255, 0, 255), 2.0f);
-				}
+				}*/
 			}
 			if (data->m_bCurRidgeRegressionFitting && !data->m_ridgeRegressionFittingPoints.empty())
 			{
-				for (int n = 0; n < data->m_ridgeRegressionFittingPoints.size() - 1; ++n)
+				drawCurve(data->m_ridgeRegressionFittingPoints, draw_list, origin, IM_COL32(255, 255, 0, 255));
+				/*for (int n = 0; n < data->m_ridgeRegressionFittingPoints.size() - 1; ++n)
 				{
 					draw_list->AddLine(ImVec2(origin.x + data->m_ridgeRegressionFittingPoints[n][0], origin.y + data->m_ridgeRegressionFittingPoints[n][1]),
 						ImVec2(origin.x + data->m_ridgeRegressionFittingPoints[n + 1][0], origin.y + data->m_ridgeRegressionFittingPoints[n + 1][1]),
 						IM_COL32(0, 255, 0, 255), 2.0f);
-				}
+				}*/
 			}
 			draw_list->PopClipRect();
 		}
@@ -238,7 +242,10 @@ void CanvasSystem::polynomialInterpolation(const std::vector<Ubpa::pointf2>& inp
 	{
 		return;
 	}
-	
+
+  double minX, maxX;
+  getNormalizedParameter(input, minX, maxX);
+
   Eigen::MatrixXd A(pointNum, pointNum);
 	Eigen::VectorXd b(pointNum);
 	for (int i = 0; i < pointNum; i++)
@@ -247,7 +254,7 @@ void CanvasSystem::polynomialInterpolation(const std::vector<Ubpa::pointf2>& inp
 		for (int j = 0; j < pointNum; j++)
 		{
 			A(i, j) = x;
-			x *= input[i][0];
+			x *= (input[i][0] - minX) / (maxX - minX);
 		}
     b(i) = input[i][1];
 	}
@@ -266,26 +273,19 @@ void CanvasSystem::polynomialInterpolation(const std::vector<Ubpa::pointf2>& inp
 	//Eigen::JacobiSVD<Eigen::MatrixXd> dec(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
 
   Eigen::VectorXd coefficient = dec.solve(b);
-	double step = 1;
-  double xPos = input[0][0];
+	double step = 1 / (maxX - minX);
+  double xPos = MIN_X;
 	int idx = 1;
-	while(xPos <= input[pointNum - 1][0] + DOUBLE_TOLERANCE)
+	while(xPos <= MAX_X + DOUBLE_TOLERANCE)
 	{
 		double y = 0;
 		for (int j = 0; j < pointNum; j++)
 		{
 			y += coefficient(j) * pow(xPos, j);
 		}
-    output.emplace_back(xPos, y);
-		if (idx < pointNum - 1 && xPos + step > input[idx][0] && xPos < input[idx][0] || idx == pointNum - 1 && xPos + step > input[idx][0])
-		{
-			xPos = input[idx][0];
-			idx++;
-		}
-		else
-		{
-			xPos += step;
-		}
+    double realX = xPos * (maxX - minX) + minX;
+    output.emplace_back(realX, y);
+		xPos += step;
 	}
 }
 
@@ -301,26 +301,31 @@ void CanvasSystem::gaussBasicFuncInterpolation(const std::vector<Ubpa::pointf2>&
 	int pointNum = input.size();
 	Eigen::MatrixXd A(pointNum + 1, pointNum + 1);
 	Eigen::VectorXd b(pointNum + 1);
+	double minX, maxX;
+	getNormalizedParameter(input, minX, maxX);
 	for (int i = 0; i < pointNum; ++i)
 	{
 		A(i, 0) = 1;
+    double xi = (input[i][0] - minX) / (maxX - minX);
 		for (int j = 1; j < pointNum + 1; ++j)
 		{
-			A(i, j) = exp(-pow(input[i][0] - input[j - 1][0], 2) / 2.0 / pow(sigma, 2));
+      double xj = (input[j - 1][0] - minX) / (maxX - minX);
+			A(i, j) = exp(-pow(xi - xj, 2) / 2.0 / pow(sigma, 2));
 		}
     b(i) = input[i][1];
 	}
 
 	//增加约束  初始点input[0]的导数为0
 	A(pointNum, 0) = 0;
+  double x0 = (input[0][0] - minX) / (maxX - minX);
 	for (int j = 1; j < pointNum + 1; ++j)
 	{
-		A(pointNum, j) = -(input[0][0] - input[j - 1][0]) / pow(sigma, 2) * exp(-pow(input[0][0] - input[j - 1][0], 2) / 2.0 / pow(sigma, 2));
+    double xj = (input[j - 1][0] - minX) / (maxX - minX);
+		A(pointNum, j) = -(x0 - xj) / pow(sigma, 2) * exp(-pow(x0 - xj, 2) / 2.0 / pow(sigma, 2));
 	}
 	b(pointNum) = 0;
 
 	auto dec = A.colPivHouseholderQr();
-	//if (dec.info() != Eigen::Success || dec.rank() != pointNum + 1)
 	if (dec.info() != Eigen::Success)
 	{
 		spdlog::info("info: {:d}, rand: {:d}", dec.info(), dec.rank());
@@ -329,27 +334,21 @@ void CanvasSystem::gaussBasicFuncInterpolation(const std::vector<Ubpa::pointf2>&
 
 	Eigen::VectorXd coefficient = dec.solve(b);
 
-  double step = 1;
+  double step = 1 / (maxX - minX);
 
-  double xPos = input[0][0];
+  double xPos = MIN_X;
   int idx = 1;
-	while (xPos <= input[pointNum - 1][0] + DOUBLE_TOLERANCE)
+	while (xPos <= MAX_X + DOUBLE_TOLERANCE)
 	{
 		double y = coefficient(0);
 		for (int j = 1; j < pointNum + 1; ++j)
 		{
-			y += coefficient(j) * exp(-pow(xPos - input[j - 1][0], 2) / 2.0 / pow(sigma, 2));
+      double xj = (input[j - 1][0] - minX) / (maxX - minX);
+			y += coefficient(j) * exp(-pow(xPos - xj, 2) / 2.0 / pow(sigma, 2));
 		}
-		output.emplace_back(xPos, y);
-		if (idx < pointNum - 1 && xPos + step > input[idx][0] && xPos < input[idx][0] || idx == pointNum - 1 && xPos + step > input[idx][0])
-		{
-			xPos = input[idx][0];
-			idx++;
-		}
-		else
-		{
-			xPos += step;
-    }
+    double realX = xPos * (maxX - minX) + minX;
+		output.emplace_back(realX, y);
+		xPos += step;
 	}
 }
 
@@ -363,44 +362,38 @@ void CanvasSystem::polynomialFitting(const std::vector<Ubpa::pointf2>& input, in
   int pointNum = input.size();
   Eigen::MatrixXd A(pointNum, degree + 1);
   Eigen::VectorXd b(pointNum);
+	double minX, maxX;
+	getNormalizedParameter(input, minX, maxX);
   for (int i = 0; i < pointNum; i++)
 	{
 		double x = 1;
 		for (int j = 0; j < degree + 1; j++)
 		{
 			A(i, j) = x;
-			x *= input[i][0];
+			x *= (input[i][0] - minX) / (maxX - minX);
 		}
 		b(i) = input[i][1];
 	}
   Eigen::VectorXd coefficient = A.colPivHouseholderQr().solve(b);
-  double step = 1;
-  double xPos = input[0][0];
+  double step = 1 / (maxX - minX);
+  double xPos = MIN_X;
   int idx = 1;
-	while (xPos <= input[pointNum - 1][0] + DOUBLE_TOLERANCE)
+	while (xPos <= MAX_X + DOUBLE_TOLERANCE)
 	{
 		double y = 0;
 		for (int j = 0; j <= degree; j++)
 		{
 			y += coefficient(j) * pow(xPos, j);
 		}
-		output.emplace_back(xPos, y);
-		if (idx < pointNum - 1 && xPos + step > input[idx][0] && xPos < input[idx][0] || idx == pointNum - 1 && xPos + step > input[idx][0])
-		{
-			xPos = input[idx][0];
-			idx++;
-		}
-		else
-		{
-			xPos += step;
-		}
+    double realX = xPos * (maxX - minX) + minX;
+		output.emplace_back(realX, y);
+		xPos += step;
 	}
-
 }
 
 void CanvasSystem::ridgeRegressionFitting(const std::vector<Ubpa::pointf2>& input, double lambda, int degree, std::vector<Ubpa::pointf2>& output)
 {
-	if (degree < 3 || lambda < 0)
+	if (degree < 1 || lambda < 0)
 	{
 		return;
 	}
@@ -412,13 +405,15 @@ void CanvasSystem::ridgeRegressionFitting(const std::vector<Ubpa::pointf2>& inpu
 	}
   Eigen::MatrixXd A(pointCount + degree + 1, degree + 1);
   Eigen::VectorXd b(pointCount + degree + 1);
+  double minX, maxX;
+  getNormalizedParameter(input, minX, maxX);
 	for (int i = 0; i < pointCount; i++)
 	{
 		A(i, 0) = 1;
 		b(i) = input[i][1];
 		for (int j = 1; j < degree + 1; j++)
 		{
-			A(i, j) = pow(input[i][0], j);
+			A(i, j) = pow((input[i][0] - minX) / (maxX - minX), j);
 		}
 	}
 	for (int i = 0; i < degree + 1; i++)
@@ -430,26 +425,19 @@ void CanvasSystem::ridgeRegressionFitting(const std::vector<Ubpa::pointf2>& inpu
 		b(pointCount + i) = 0;
 	}
   Eigen::VectorXd coefficient = A.colPivHouseholderQr().solve(b);
-  double step = 1;
-  double xPos = input[0][0];
+  double step = 1 / (maxX - minX);
+  double xPos = MIN_X;
   int idx = 1;
-	while (xPos <= input[pointCount - 1][0] + DOUBLE_TOLERANCE)
+	while (xPos <= MAX_X + DOUBLE_TOLERANCE)
 	{
 		double y = 0;
 		for (int j = 0; j < degree + 1; j++)
 		{
 			y += coefficient(j) * pow(xPos, j);
 		}
-		output.emplace_back(xPos, y);
-		if (xPos + step > input[idx][0] && xPos < input[idx][0])
-		{
-			xPos = input[idx][0];
-			++idx;
-		}
-		else
-		{
-			xPos += step;
-		}
+    double realX = xPos * (maxX - minX) + minX;
+		output.emplace_back(realX, y);
+		xPos += step;
 	}
 }
 
@@ -465,5 +453,36 @@ void CanvasSystem::sysStatus(CanvasData* data)
 	data->m_bPreGuassBasicInterpolation = data->m_bCurGuassBasicInterpolation;
   data->m_bPrePolynomialFitting = data->m_bCurPolynomialFitting;
   data->m_bPreRidgeRegressionFitting = data->m_bCurRidgeRegressionFitting;
+}
+
+void CanvasSystem::drawCurve(const std::vector<Ubpa::pointf2>& points, ImDrawList* draw_list, const ImVec2& origin, ImU32 col)
+{
+	for (int n = 0; n < points.size() - 1; ++n)
+	{
+		draw_list->AddLine(ImVec2(origin.x + points[n][0], origin.y + points[n][1]),
+			ImVec2(origin.x + points[n + 1][0], origin.y + points[n + 1][1]),
+			col, 2.0f);
+	}
+}
+
+void CanvasSystem::getNormalizedParameter(const std::vector<Ubpa::pointf2>& points, double& minVal, double& maxVal)
+{
+	if (points.empty())
+	{
+		return;
+	}
+  minVal = points[0][0];
+  maxVal = points[0][0];
+  for (const auto& point : points)
+  {
+		if (point[0] < minVal)
+		{
+			minVal = point[0];
+		}
+		if (point[0] > maxVal)
+		{
+			maxVal = point[0];
+    }
+  }
 }
 

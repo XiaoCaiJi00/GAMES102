@@ -22,7 +22,7 @@ struct CanvasData {
 	std::vector<Ubpa::pointf2> m_guassBasicInterpolationPoints;
 	std::vector<Ubpa::pointf2> m_polynomialFittingPoints;
 	std::vector<Ubpa::pointf2> m_ridgeRegressionFittingPoints;
-	double m_gaussSigma = 10.0;
+	double m_gaussSigma = 0.5;
 	double m_ridgeRegressionlambda = 0.1;
   int m_polynomialFittingDegree = 3;
   int m_RidgeRegressionFittingDegree = 3;

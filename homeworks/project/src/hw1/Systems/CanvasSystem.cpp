@@ -441,8 +441,6 @@ void CanvasSystem::ridgeRegressionFitting(const std::vector<Ubpa::pointf2>& inpu
 	}
 }
 
-
-
 void CanvasSystem::sysStatus(CanvasData* data)
 {
 	if (data == nullptr)

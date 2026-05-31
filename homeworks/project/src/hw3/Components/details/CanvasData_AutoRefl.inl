@@ -5,6 +5,22 @@
 #include <USRefl/USRefl.h>
 
 template<>
+struct Ubpa::USRefl::TypeInfo<ParameterType> :
+    TypeInfoBase<ParameterType>
+{
+#ifdef UBPA_USREFL_NOT_USE_NAMEOF
+    static constexpr char name[14] = "ParameterType";
+#endif
+    static constexpr AttrList attrs = {};
+    static constexpr FieldList fields = {
+        Field {TSTR("kNoneParameterization"), Type::kNoneParameterization},
+        Field {TSTR("kUniformParameterization"), Type::kUniformParameterization},
+        Field {TSTR("kChordParameterization"), Type::kChordParameterization},
+        Field {TSTR("kCentripetalParameterization"), Type::kCentripetalParameterization},
+    };
+};
+
+template<>
 struct Ubpa::USRefl::TypeInfo<CanvasData> :
     TypeInfoBase<CanvasData>
 {
@@ -25,6 +41,55 @@ struct Ubpa::USRefl::TypeInfo<CanvasData> :
         }},
         Field {TSTR("adding_line"), &Type::adding_line, AttrList {
             Attr {TSTR(UMeta::initializer), []()->bool{ return { false }; }},
+        }},
+        Field {TSTR("m_bCurPolynomialInterpolation"), &Type::m_bCurPolynomialInterpolation, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return false; }},
+        }},
+        Field {TSTR("m_bPrePolynomialInterpolation"), &Type::m_bPrePolynomialInterpolation, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return false; }},
+        }},
+        Field {TSTR("m_bCurGuassBasicInterpolation"), &Type::m_bCurGuassBasicInterpolation, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return false; }},
+        }},
+        Field {TSTR("m_bPreGuassBasicInterpolation"), &Type::m_bPreGuassBasicInterpolation, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return false; }},
+        }},
+        Field {TSTR("m_bCurPolynomialFitting"), &Type::m_bCurPolynomialFitting, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return false; }},
+        }},
+        Field {TSTR("m_bPrePolynomialFitting"), &Type::m_bPrePolynomialFitting, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return false; }},
+        }},
+        Field {TSTR("m_bCurRidgeRegressionFitting"), &Type::m_bCurRidgeRegressionFitting, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return false; }},
+        }},
+        Field {TSTR("m_bPreRidgeRegressionFitting"), &Type::m_bPreRidgeRegressionFitting, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return false; }},
+        }},
+        Field {TSTR("m_bReCalculate"), &Type::m_bReCalculate, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->bool{ return false; }},
+        }},
+        Field {TSTR("m_polynomialInterpolationPoints"), &Type::m_polynomialInterpolationPoints},
+        Field {TSTR("m_guassBasicInterpolationPoints"), &Type::m_guassBasicInterpolationPoints},
+        Field {TSTR("m_polynomialFittingPoints"), &Type::m_polynomialFittingPoints},
+        Field {TSTR("m_ridgeRegressionFittingPoints"), &Type::m_ridgeRegressionFittingPoints},
+        Field {TSTR("m_gaussSigma"), &Type::m_gaussSigma, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->double{ return 0.5; }},
+        }},
+        Field {TSTR("m_ridgeRegressionlambda"), &Type::m_ridgeRegressionlambda, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->double{ return 0.1; }},
+        }},
+        Field {TSTR("m_polynomialFittingDegree"), &Type::m_polynomialFittingDegree, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->int{ return 3; }},
+        }},
+        Field {TSTR("m_RidgeRegressionFittingDegree"), &Type::m_RidgeRegressionFittingDegree, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->int{ return 3; }},
+        }},
+        Field {TSTR("m_curParamterType"), &Type::m_curParamterType, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->int{ return kNoneParameterization; }},
+        }},
+        Field {TSTR("m_preParamterType"), &Type::m_preParamterType, AttrList {
+            Attr {TSTR(UMeta::initializer), []()->int{ return kNoneParameterization; }},
         }},
     };
 };

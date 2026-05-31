@@ -78,7 +78,6 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 			ImGui::SameLine();
 			ImGui::BeginChild("RightGroup", ImVec2(200, 150), true);  // 自动填充剩余宽度
 			ImGui::Text("parameterization type：");
-			ImGui::RadioButton("none parameterize", &data->m_curParamterType, ParameterType::kNoneParameterization);
 			ImGui::RadioButton("uniform parameterize", &data->m_curParamterType, ParameterType::kUniformParameterization);
 			ImGui::RadioButton("chord length parameterize", &data->m_curParamterType, ParameterType::kChordParameterization);
 			ImGui::RadioButton("centripetal parameterize", &data->m_curParamterType, ParameterType::kCentripetalParameterization);
@@ -173,101 +172,71 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 			{
 				std::vector<pointf2> xPoints(data->points.size());
 				std::vector<pointf2> yPoints(data->points.size());
-				if (data->m_curParamterType != ParameterType::kNoneParameterization)
+				std::vector<double> tParam;
+				parameterization(data->points, tParam, data->m_curParamterType);
+				for (int i = 0; i < tParam.size(); i++)
 				{
-					std::vector<double> tParam;
-					parameterization(data->points, tParam, data->m_curParamterType);
-					for (int i = 0; i < tParam.size(); i++)
-					{
-						xPoints[i][0] = tParam[i];
-            xPoints[i][1] = data->points[i][0];
-						yPoints[i][0] = tParam[i];
-						yPoints[i][1] = data->points[i][1];
-					}
+					xPoints[i][0] = tParam[i];
+          xPoints[i][1] = data->points[i][0];
+					yPoints[i][0] = tParam[i];
+					yPoints[i][1] = data->points[i][1];
 				}
 				if (data->m_bCurPolynomialInterpolation)
 				{
-					if (data->m_curParamterType == ParameterType::kNoneParameterization)
+          data->m_polynomialInterpolationPoints.clear();
+					std::vector<pointf2> polynomialInterpolationXPoints;
+					std::vector<pointf2> polynomialInterpolationYPoints;
+					polynomialInterpolation(xPoints, polynomialInterpolationXPoints);
+					polynomialInterpolation(yPoints, polynomialInterpolationYPoints);
+					for (int i = 0; i < polynomialInterpolationXPoints.size(); i++)
 					{
-						polynomialInterpolation(data->points, data->m_polynomialInterpolationPoints);
-					}
-					else
-					{
-            data->m_polynomialInterpolationPoints.clear();
-						std::vector<pointf2> polynomialInterpolationXPoints;
-						std::vector<pointf2> polynomialInterpolationYPoints;
-						polynomialInterpolation(xPoints, polynomialInterpolationXPoints);
-						polynomialInterpolation(yPoints, polynomialInterpolationYPoints);
-						for (int i = 0; i < polynomialInterpolationXPoints.size(); i++)
-						{
-							double x = polynomialInterpolationXPoints[i][1];
-							double y = polynomialInterpolationYPoints[i][1];
-							data->m_polynomialInterpolationPoints.push_back(pointf2(x, y));
-            }
-					}
+						double x = polynomialInterpolationXPoints[i][1];
+						double y = polynomialInterpolationYPoints[i][1];
+						data->m_polynomialInterpolationPoints.push_back(pointf2(x, y));
+          }
 				}
 				if (data->m_bCurGuassBasicInterpolation)
 				{
-					if (data->m_curParamterType == ParameterType::kNoneParameterization)
+					data->m_guassBasicInterpolationPoints.clear();
+          std::vector<pointf2> guassBasicInterpolationXPoints;
+					std::vector<pointf2> guassBasicInterpolationYPoints;
+          gaussBasicFuncInterpolation(xPoints, data->m_gaussSigma, guassBasicInterpolationXPoints);
+					gaussBasicFuncInterpolation(yPoints, data->m_gaussSigma, guassBasicInterpolationYPoints);
+					for (int i = 0; i < guassBasicInterpolationXPoints.size(); i++)
 					{
-						gaussBasicFuncInterpolation(data->points, data->m_gaussSigma, data->m_guassBasicInterpolationPoints);
-					}
-					else
-					{
-						data->m_guassBasicInterpolationPoints.clear();
-            std::vector<pointf2> guassBasicInterpolationXPoints;
-						std::vector<pointf2> guassBasicInterpolationYPoints;
-            gaussBasicFuncInterpolation(xPoints, data->m_gaussSigma, guassBasicInterpolationXPoints);
-						gaussBasicFuncInterpolation(yPoints, data->m_gaussSigma, guassBasicInterpolationYPoints);
-						for (int i = 0; i < guassBasicInterpolationXPoints.size(); i++)
-						{
-							double x = guassBasicInterpolationXPoints[i][1];
-							double y = guassBasicInterpolationYPoints[i][1];
-							data->m_guassBasicInterpolationPoints.push_back(pointf2(x, y));
-						}
+						double x = guassBasicInterpolationXPoints[i][1];
+						double y = guassBasicInterpolationYPoints[i][1];
+						data->m_guassBasicInterpolationPoints.push_back(pointf2(x, y));
 					}
 				}
 				if (data->m_bCurPolynomialFitting)
 				{
-					if (data->m_curParamterType == ParameterType::kNoneParameterization)
+
+					data->m_polynomialFittingPoints.clear();
+					std::vector<pointf2> polynomialFittingXPoints;
+					std::vector<pointf2> polynomialFittingYPoints;
+					polynomialFitting(xPoints, data->m_polynomialFittingDegree, polynomialFittingXPoints);
+					polynomialFitting(yPoints, data->m_polynomialFittingDegree, polynomialFittingYPoints);
+					for (int i = 0; i < polynomialFittingXPoints.size(); i++)
 					{
-						polynomialFitting(data->points, data->m_polynomialFittingDegree, data->m_polynomialFittingPoints);
+						double x = polynomialFittingXPoints[i][1];
+						double y = polynomialFittingYPoints[i][1];
+						data->m_polynomialFittingPoints.push_back(pointf2(x, y));
 					}
-					else
-					{
-						data->m_polynomialFittingPoints.clear();
-						std::vector<pointf2> polynomialFittingXPoints;
-						std::vector<pointf2> polynomialFittingYPoints;
-						polynomialFitting(xPoints, data->m_polynomialFittingDegree, polynomialFittingXPoints);
-						polynomialFitting(yPoints, data->m_polynomialFittingDegree, polynomialFittingYPoints);
-						for (int i = 0; i < polynomialFittingXPoints.size(); i++)
-						{
-							double x = polynomialFittingXPoints[i][1];
-							double y = polynomialFittingYPoints[i][1];
-							data->m_polynomialFittingPoints.push_back(pointf2(x, y));
-						}
-          }
 				}
 				if (data->m_bCurRidgeRegressionFitting)
 				{
-					if (data->m_curParamterType == ParameterType::kNoneParameterization)
+					data->m_ridgeRegressionFittingPoints.clear();
+					std::vector<pointf2> ridgeRegressionFittingXPoints;
+					std::vector<pointf2> ridgeRegressionFittingYPoints;
+					ridgeRegressionFitting(xPoints, data->m_ridgeRegressionlambda, data->m_RidgeRegressionFittingDegree, ridgeRegressionFittingXPoints);
+					ridgeRegressionFitting(yPoints, data->m_ridgeRegressionlambda, data->m_RidgeRegressionFittingDegree, ridgeRegressionFittingYPoints);
+					for (int i = 0; i < ridgeRegressionFittingXPoints.size(); i++)
 					{
-						ridgeRegressionFitting(data->points, data->m_ridgeRegressionlambda, data->m_RidgeRegressionFittingDegree, data->m_ridgeRegressionFittingPoints);
+						double x = ridgeRegressionFittingXPoints[i][1];
+						double y = ridgeRegressionFittingYPoints[i][1];
+						data->m_ridgeRegressionFittingPoints.push_back(pointf2(x, y));
 					}
-					else
-					{
-						data->m_ridgeRegressionFittingPoints.clear();
-						std::vector<pointf2> ridgeRegressionFittingXPoints;
-						std::vector<pointf2> ridgeRegressionFittingYPoints;
-						ridgeRegressionFitting(xPoints, data->m_ridgeRegressionlambda, data->m_RidgeRegressionFittingDegree, ridgeRegressionFittingXPoints);
-						ridgeRegressionFitting(yPoints, data->m_ridgeRegressionlambda, data->m_RidgeRegressionFittingDegree, ridgeRegressionFittingYPoints);
-						for (int i = 0; i < ridgeRegressionFittingXPoints.size(); i++)
-						{
-							double x = ridgeRegressionFittingXPoints[i][1];
-							double y = ridgeRegressionFittingYPoints[i][1];
-							data->m_ridgeRegressionFittingPoints.push_back(pointf2(x, y));
-						}
-          }
 				}
 				data->m_bReCalculate = false;
 			}

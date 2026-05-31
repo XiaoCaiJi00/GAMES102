@@ -35,8 +35,8 @@ struct CanvasData {
 	double m_ridgeRegressionlambda = 0.1;
   int m_polynomialFittingDegree = 3;
   int m_RidgeRegressionFittingDegree = 3;
-	int m_curParamterType = kNoneParameterization;
-	int m_preParamterType = kNoneParameterization;
+	int m_curParamterType = kUniformParameterization;
+	int m_preParamterType = kUniformParameterization;
 
 };
 

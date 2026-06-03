@@ -23,9 +23,6 @@ struct Ubpa::USRefl::TypeInfo<CanvasData> :
         Field {TSTR("opt_enable_context_menu"), &Type::opt_enable_context_menu, AttrList {
             Attr {TSTR(UMeta::initializer), []()->bool{ return { true }; }},
         }},
-        Field {TSTR("adding_line"), &Type::adding_line, AttrList {
-            Attr {TSTR(UMeta::initializer), []()->bool{ return { false }; }},
-        }},
     };
 };
 

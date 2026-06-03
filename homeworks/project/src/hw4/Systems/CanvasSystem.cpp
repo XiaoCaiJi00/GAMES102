@@ -66,6 +66,8 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 					{	
 						data->m_dragPointIdx = i;
 						data->m_bIsDragging = true;
+            data->m_tangentLineSelectedPointIdx = i;
+            data->m_bTangentDisplayed = true;
 						break;
 					}
 				}
@@ -93,6 +95,7 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 			{
 				if (ImGui::MenuItem("Remove one", NULL, false, data->points.size() > 0)) { data->points.resize(data->points.size() - 1); }
 				if (ImGui::MenuItem("Remove all", NULL, false, data->points.size() > 0)) { data->points.clear(); }
+				if (ImGui::MenuItem("hide tangentLine", NULL, false, data->points.size() > 0)) { data->m_bTangentDisplayed = false; }
 				ImGui::EndPopup();
 			}
 
@@ -110,6 +113,13 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
       {
         draw_list->AddCircleFilled(ImVec2(origin.x + data->points[n][0], origin.y + data->points[n][1]), data->m_pointRadius, IM_COL32(255, 0, 0, 255));
       }
+
+			for (int i = 0; i < data->m_cubicSplineInterpolationPoints.size() - 1; i++)
+			{
+				draw_list->AddLine(ImVec2(origin.x + data->m_cubicSplineInterpolationPoints[i][0], origin.y + data->m_cubicSplineInterpolationPoints[i][1]), ImVec2(origin.x + data->m_cubicSplineInterpolationPoints[i + 1][0], origin.y + data->m_cubicSplineInterpolationPoints[i + 1][1]), IM_COL32(0, 255, 0, 255));
+      }
+
+			drawBothTangentLine(data->m_cubicSplineTangentVec, data->points, data->m_tangentLineSelectedPointIdx, data->m_cubicSplineTangentVecLength, origin, draw_list, data->m_tangentLinePointWidth, data->m_tangentLinePointHeight);
 			draw_list->PopClipRect();
 		}
 
@@ -147,11 +157,23 @@ void CanvasSystem::calAllPointTangentInfo(const std::vector<Ubpa::pointf2>& poin
   }
 }
 
+void CanvasSystem::drawBothTangentLine(const std::vector<Ubpa::vecf2>& tangentVec, const std::vector<Ubpa::pointf2>& points, int pointIdx, const std::vector<double>& vecLength, const ImVec2& origin, ImDrawList* draw_list, double rectWidth, double rectHeight)
+{
+	if (pointIdx > 0)
+	{
+		drawSingleTangentLine(tangentVec[2 * pointIdx - 1], points[pointIdx], vecLength[2 * pointIdx - 1], origin, true, draw_list, rectWidth, rectHeight);
+	}
+	if (pointIdx < points.size() - 1)
+	{
+		drawSingleTangentLine(tangentVec[2 * pointIdx], points[pointIdx], vecLength[2 * pointIdx], origin, false, draw_list, rectWidth, rectHeight);
+	}
+}
+
 //根据切线信息绘制切线，isLeftPoint表示当前点是曲线段的左端点还是右端点
-void CanvasSystem::drawTangentLine(const Ubpa::vecf2 tangentVec, const Ubpa::pointf2& point, double length, const ImVec2& origin, bool isLeftPoint, ImDrawList* draw_list, double rectWidth, double rectHeight)
+void CanvasSystem::drawSingleTangentLine(const Ubpa::vecf2 tangentVec, const Ubpa::pointf2& point, double length, const ImVec2& origin, bool isRightPoint, ImDrawList* draw_list, double rectWidth, double rectHeight)
 {
 	Ubpa::vecf2 vec = tangentVec / tangentVec.norm() * length * sqrt(2);
-	if (isLeftPoint)
+	if (isRightPoint)
 	{
     vec[0] = -vec[0];
     vec[1] = -vec[1];
@@ -161,4 +183,23 @@ void CanvasSystem::drawTangentLine(const Ubpa::vecf2 tangentVec, const Ubpa::poi
   ImVec2 p_min = point + ImVec2(-rectWidth / 2.0, -rectHeight / 2.0);
   ImVec2 p_max = point + ImVec2(rectWidth / 2.0, rectHeight / 2.0);
   draw_list->AddRectFilled(ImVec2(origin.x + p_min.x, origin.y + p_min.y), ImVec2(origin.x + p_max.x, origin.y + p_max.y), IM_COL32(255, 255, 0, 255));
+}
+
+void CanvasSystem::calCubicSplineInterpolationPoints(const std::vector<Ubpa::pointf2>& points, const std::vector<CubicPolynomialCofficient>& cofficient, std::vector<Ubpa::pointf2>& interpolationPoints)
+{
+  interpolationPoints.clear();
+  int pointCount = points.size();
+	if (pointCount < 2)
+	{
+		return;
+	}
+	double step = 1.0;
+	for (int i = 0; i < pointCount - 1; i++)
+	{
+		for (double x = points[i][0]; x <= points[i + 1][0]; x += step)
+		{
+			double y = cofficient[i].a * x * x * x + cofficient[i].b * x * x + cofficient[i].c * x + cofficient[i].d;
+			interpolationPoints.push_back(Ubpa::pointf2(x, y));
+		}
+  }
 }

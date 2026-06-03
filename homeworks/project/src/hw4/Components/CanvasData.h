@@ -23,6 +23,9 @@ struct CanvasData {
   int m_dragPointIdx = -1;
   bool m_bIsDragging = false;
 
+  int m_tangentLineSelectedPointIdx = -1;
+  bool m_bTangentDisplayed = false;
+
   //绘制数据属性
   double m_pointRadius = 5.0;
   double m_tangentLinePointWidth = 3.0;

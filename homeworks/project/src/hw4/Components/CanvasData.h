@@ -16,7 +16,7 @@ struct CanvasData {
 	bool opt_enable_context_menu{ true };
 
   std::vector<CubicPolynomialCofficient> m_cubicSplineCofficients;
-  std::vector<Ubpa::pointf2> m_cubicSplineInterpolationPoints;
+  std::vector<std::vector<Ubpa::pointf2>> m_cubicSplineInterpolationPoints;
   std::vector<Ubpa::vecf2> m_cubicSplineTangentVec;
   std::vector<double> m_cubicSplineTangentVecLength;
 

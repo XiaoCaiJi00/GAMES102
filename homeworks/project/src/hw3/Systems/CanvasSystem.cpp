@@ -571,10 +571,10 @@ void CanvasSystem::sysStatus(CanvasData* data)
 
 void CanvasSystem::drawCurve(const std::vector<Ubpa::pointf2>& points, ImDrawList* draw_list, const ImVec2& origin, ImU32 col)
 {
-	for (int n = 0; n < points.size() - 1; ++n)
+	for (int n = 1; n < points.size(); ++n)
 	{
-		draw_list->AddLine(ImVec2(origin.x + points[n][0], origin.y + points[n][1]),
-			ImVec2(origin.x + points[n + 1][0], origin.y + points[n + 1][1]),
+		draw_list->AddLine(ImVec2(origin.x + points[n - 1][0], origin.y + points[n - 1][1]),
+			ImVec2(origin.x + points[n][0], origin.y + points[n][1]),
 			col, 2.0f);
 	}
 }

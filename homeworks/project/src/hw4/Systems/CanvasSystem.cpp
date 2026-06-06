@@ -4,6 +4,8 @@
 
 using namespace Ubpa;
 
+static const double INIT_TANGENT_VEC_LENGTH = 30.0;
+
 void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 	schedule.RegisterCommand([](Ubpa::UECS::World* w) {
 		auto data = w->entityMngr.GetSingleton<CanvasData>();
@@ -46,33 +48,35 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 			const ImVec2 origin(canvas_p0.x + data->scrolling[0], canvas_p0.y + data->scrolling[1]); // Lock scrolled origin
 			const pointf2 mouse_pos_in_canvas(io.MousePos.x - origin.x, io.MousePos.y - origin.y);
 
+			if (is_hovered && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+			{
+				for (int i = 0; i < data->points.size(); i++)
+				{
+					if ((mouse_pos_in_canvas - data->points[i]).norm() < data->m_pointRadius)
+					{
+						data->m_dragPointIdx = i;
+						data->m_bIsDragCurvePoint = true;
+						data->m_tangentLineSelectedPointIdx = i;
+						data->m_bTangentDisplayed = true;
+						break;
+					}
+				}
+			}
+
 			// Add first and second point
 			if (is_hovered && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
 			{
-        if (data->m_bIsDragging)
+        if (data->m_bIsDragCurvePoint)
 				{
-					data->m_bIsDragging = false;
+					data->m_bIsDragCurvePoint = false;
 					data->m_dragPointIdx = -1;
 				}
 				else
 				{
 					data->points.push_back(mouse_pos_in_canvas);
+					data->m_bReCalculate = true;
 				}
 			}
-      if (is_hovered && ImGui::IsMouseDown(ImGuiMouseButton_Left))
-      {
-				for (int i = 0; i < data->points.size(); i++)
-				{
-          if ((mouse_pos_in_canvas - data->points[i]).norm() < data->m_pointRadius)
-					{	
-						data->m_dragPointIdx = i;
-						data->m_bIsDragging = true;
-            data->m_tangentLineSelectedPointIdx = i;
-            data->m_bTangentDisplayed = true;
-						break;
-					}
-				}
-      }
 
 			// Pan (we use a zero mouse threshold when there's no context menu)
 			// You may decide to make that threshold dynamic based on whether the mouse is hovering something etc.
@@ -82,9 +86,10 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 				data->scrolling[0] += io.MouseDelta.x;
 				data->scrolling[1] += io.MouseDelta.y;
 			}
-      if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Left, mouse_threshold_for_pan) && data->m_bIsDragging)
+      if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Left, mouse_threshold_for_pan) && data->m_bIsDragCurvePoint)
       {
         data->points[data->m_dragPointIdx] = mouse_pos_in_canvas;
+				data->m_bReCalculate = true;
       }
       
 
@@ -94,11 +99,31 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 				ImGui::OpenPopupContextItem("context");
 			if (ImGui::BeginPopup("context"))
 			{
-				if (ImGui::MenuItem("Remove one", NULL, false, data->points.size() > 0)) { data->points.resize(data->points.size() - 1); }
-				if (ImGui::MenuItem("Remove all", NULL, false, data->points.size() > 0)) { data->points.clear(); }
+				if (ImGui::MenuItem("Remove one", NULL, false, data->points.size() > 0)) 
+				{ 
+					data->points.resize(data->points.size() - 1); 
+					data->m_bReCalculate = true;
+				}
+				if (ImGui::MenuItem("Remove all", NULL, false, data->points.size() > 0)) 
+				{ 
+					data->points.clear(); 
+					data->m_bReCalculate = true;
+				}
 				if (ImGui::MenuItem("hide tangentLine", NULL, false, data->points.size() > 0)) { data->m_bTangentDisplayed = false; }
 				ImGui::EndPopup();
 			}
+
+			if (data->m_bReCalculate)
+			{
+				data->m_bTangentDisplayed = false;
+				calCubicSplineCofficient(data->points, data->m_cubicSplineCofficients);
+				calCubicSplineInterpolationPoints(data->points, data->m_cubicSplineCofficients, data->m_cubicSplineInterpolationPoints);
+				if (data->points.size() > 1)
+				{
+					data->m_cubicSplineTangentVecLength.assign(2 * data->points.size() - 2, INIT_TANGENT_VEC_LENGTH);
+				}
+			}
+
 
 			// Draw grid + all lines in the canvas
 			draw_list->PushClipRect(canvas_p0, canvas_p1, true);
@@ -116,12 +141,13 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
       }
 
 			drawCubicSpline(data->m_cubicSplineInterpolationPoints, origin, draw_list);
-
-			if (data->m_bTangentDisplayed)
+			if (data->m_bTangentDisplayed && data->m_tangentLineSelectedPointIdx < data->m_tangentLineSelectedPointIdx < data->points.size())
 			{
-				drawBothTangentLine(data->m_cubicSplineTangentVec, data->points, data->m_tangentLineSelectedPointIdx, 
-														data->m_cubicSplineTangentVecLength, origin, draw_list, data->m_tangentLinePointWidth, data->m_tangentLinePointHeight);
+				calAllPointTangentInfo(data->points, data->m_cubicSplineTangentVec, data->m_cubicSplineCofficients);
+				drawBothTangentLine(data->m_cubicSplineTangentVec, data->points, data->m_tangentLineSelectedPointIdx,
+					data->m_cubicSplineTangentVecLength, origin, draw_list, data->m_tangentLinePointWidth, data->m_tangentLinePointHeight);
 			}
+			data->m_bReCalculate = false;
 			draw_list->PopClipRect();
 		}
 
@@ -131,7 +157,64 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 
 void CanvasSystem::calCubicSplineCofficient(const std::vector<Ubpa::pointf2>& points, std::vector<CubicPolynomialCofficient>& coefficient)
 {
+	coefficient.clear();
+	int pointCount = points.size();
+	if (pointCount < 2)
+	{
+		return;
+	}
+	Eigen::VectorXd M(pointCount);
+	M(0) = 0;
+	M(pointCount - 1) = 0;
+	if (pointCount > 2)
+	{
+		Eigen::MatrixXd A(pointCount - 2, pointCount - 2);
+		A.setZero();
+		Eigen::VectorXd b(pointCount - 2);
+		double lastH = points[1][0] - points[0][0];
+		double lastB = 6.0 * (points[1][1] - points[0][1]) / lastH;
+		double curH = points[2][0] - points[1][0];
+		double curB = 6.0 * (points[2][1] - points[1][1]) / curH;
+		A(0, 0) = 2 * (curH + lastH);
+		if (pointCount > 3)
+		{
+			A(0, 1) = curH;
+		}
+		b(0) = curB - lastB;
+		for (int i = 1; i < pointCount - 2; i++)
+		{
+			lastH = curH;
+			lastB = curB;
+			A(i, i - 1) = lastH;
+			curH = points[i + 2][0] - points[i + 1][0];
+			A(i, i) = 2 * (curH + lastH);
+			curB = 6.0 * (points[i + 2][1] - points[i + 1][1]) / curH;
+			if (i + 1 < pointCount - 2)
+			{
+				A(i, i + 1) = curH;
+			}
+			b(i) = curB - lastB;
+		}
+		M.segment(1, pointCount - 2) = A.colPivHouseholderQr().solve(b);
+	}
+	
 
+	for (int i = 0; i < pointCount - 1; i++)
+	{
+		double h = points[i + 1][0] - points[i][0];
+		CubicPolynomialCofficient coeff;
+		coeff.a = (M(i + 1) - M(i)) / (6.0 * h);
+		coeff.b = (M(i) * points[i + 1][0] - M(i + 1) * points[i][0]) / (2.0 * h);	
+		coeff.c = -M(i) * points[i + 1][0] * points[i + 1][0] / (2.0 * h) +
+							 M(i + 1) * points[i][0] * points[i][0] / (2.0 * h) + 
+							(points[i + 1][1] - points[i][1]) / h + 
+							(M(i) - M(i + 1)) * h / 6.0;
+		coeff.d = M(i) * points[i + 1][0] * points[i + 1][0] * points[i + 1][0] / (6.0 * h) -
+							M(i + 1) * points[i][0] * points[i][0] * points[i][0] / (6.0 * h) -
+							(points[i + 1][1] / h - M(i + 1) * h / 6.0) * points[i][0] +
+							(points[i][1] / h - M(i) * h / 6.0) * points[i + 1][0];
+		coefficient.push_back(coeff);
+	}
 }
 
 //y = a * x^3 + b * x^2 + c * x + d
@@ -218,8 +301,8 @@ void CanvasSystem::drawSingleTangentLine(const Ubpa::vecf2 tangentVec, const Ubp
 	}
   Ubpa::pointf2 endPoint = point + vec;
   draw_list->AddLine(ImVec2(origin.x + point[0], origin.y + point[1]), ImVec2(origin.x + endPoint[0], origin.y + endPoint[1]), IM_COL32(255, 255, 0, 255));
-  ImVec2 p_min = point + ImVec2(-rectWidth / 2.0, -rectHeight / 2.0);
-  ImVec2 p_max = point + ImVec2(rectWidth / 2.0, rectHeight / 2.0);
+  ImVec2 p_min = endPoint + ImVec2(-rectWidth / 2.0, -rectHeight / 2.0);
+  ImVec2 p_max = endPoint + ImVec2(rectWidth / 2.0, rectHeight / 2.0);
   draw_list->AddRectFilled(ImVec2(origin.x + p_min.x, origin.y + p_min.y), ImVec2(origin.x + p_max.x, origin.y + p_max.y), IM_COL32(255, 255, 0, 255));
 }
 
@@ -265,6 +348,16 @@ void CanvasSystem::calCofficientForSegment(const Ubpa::pointf2& p0, const Ubpa::
 		coefficient.b = x[1];
 		coefficient.c = x[2];
 		coefficient.d = x[3];
+}
 
-
+void CanvasSystem::calDerivativeByHandle(const Ubpa::pointf2& p0, const Ubpa::pointf2& handlePoint, double& t, double length)
+{
+	Ubpa::vecf2 vec = handlePoint - p0;
+	if (vec[0] < 0)
+	{
+		vec[0] = -vec[0];
+		vec[1] = -vec[1];
+	}
+	length = vec.norm();
+	t = vec[1] / vec[0];
 }

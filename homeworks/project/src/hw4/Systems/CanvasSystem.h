@@ -14,9 +14,11 @@ struct CanvasSystem {
 	static void calCubicSplineInterpolationPointsForSegment(const Ubpa::pointf2& p0, const Ubpa::pointf2& p1, const CubicPolynomialCofficient& coefficient, std::vector<Ubpa::pointf2>& interpolationPoints);
 	static void calCofficientForSegment(const Ubpa::pointf2& p0, const Ubpa::pointf2& p1, double t0, double t1, CubicPolynomialCofficient& coefficient);
 	static void calDerivativeByHandle(const Ubpa::pointf2& p0, const Ubpa::pointf2& handlePoint, double& t, double length);
+	static void calTangentEndPoint(const std::vector<Ubpa::vecf2>& tangentVec, const Ubpa::pointf2& points, int pointIdx, const std::vector<double>& vecLength, Ubpa::pointf2& tangentEndPoint, bool isLeftTangent);
+	static void calDerivativeByCoefficient(const CubicPolynomialCofficient& coefficient, double& t, bool isLeft);
 
 	static void drawCubicSpline(const std::vector<std::vector<Ubpa::pointf2>>& interpolationPoints, const ImVec2& origin, ImDrawList* draw_list);
-  static void drawBothTangentLine(const std::vector<Ubpa::vecf2>& tangentVec, const std::vector<Ubpa::pointf2>& points, int pointIdx, const std::vector<double>& vecLength, const ImVec2& origin, ImDrawList* draw_list, double rectWidth, double rectHeight);
-  static void drawSingleTangentLine(const Ubpa::vecf2 tangentVec, const Ubpa::pointf2& point, double length, const ImVec2& origin, bool isRightPoint, ImDrawList* draw_list, double rectWidth, double rectHeight);
+  //static void drawBothTangentLine(const std::vector<Ubpa::vecf2>& tangentVec, const std::vector<Ubpa::pointf2>& points, int pointIdx, const std::vector<double>& vecLength, const ImVec2& origin, ImDrawList* draw_list, double rectWidth, double rectHeight);
+  static void drawSingleTangentLine(const Ubpa::pointf2& point, const Ubpa::pointf2& endPoint, const ImVec2& origin, ImDrawList* draw_list, double rectWidth, double rectHeight);
   
 };

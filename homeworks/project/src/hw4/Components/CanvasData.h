@@ -21,6 +21,7 @@ struct CanvasData {
   std::vector<double> m_cubicSplineTangentVecLength;
   Ubpa::pointf2 m_leftTangentEndPoint;
   Ubpa::pointf2 m_rightTangentEndPoint;
+	std::vector<Ubpa::pointf2> m_tangentPoints;
 
   bool m_bReCalculate = false;
 
@@ -30,6 +31,11 @@ struct CanvasData {
 
   int m_tangentLineSelectedPointIdx = -1;
   bool m_bTangentDisplayed = false;
+
+	bool m_bIsLeftTangentDisplayed = false;
+  bool m_bIsRightTangentDisplayed = false;
+  bool m_bIsDragLeftTangentPoint = false;
+  bool m_bIsDragRightTangentPoint = false;
 
   //绘制数据属性
   double m_pointRadius = 5.0;

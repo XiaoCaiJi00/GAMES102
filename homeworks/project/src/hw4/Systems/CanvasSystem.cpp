@@ -61,6 +61,25 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 						break;
 					}
 				}
+				if (!data->m_bIsDragCurvePoint && data->m_bTangentDisplayed)
+				{
+					if (data->m_bIsLeftTangentDisplayed)
+					{
+						if ((mouse_pos_in_canvas - data->m_leftTangentEndPoint).norm() < data->m_pointRadius)
+						{
+							data->m_bIsDragLeftTangentPoint = true;
+						}
+						else if (data->m_bIsRightTangentDisplayed && (mouse_pos_in_canvas - data->m_rightTangentEndPoint).norm() < data->m_pointRadius)
+						{
+							data->m_bIsDragRightTangentPoint = true;
+						}
+						else
+						{
+							data->m_bIsDragLeftTangentPoint = false;
+							data->m_bIsDragRightTangentPoint = false;
+						}
+					}
+				}
 			}
 
 			// Add first and second point
@@ -69,7 +88,6 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
         if (data->m_bIsDragCurvePoint)
 				{
 					data->m_bIsDragCurvePoint = false;
-					data->m_dragPointIdx = -1;
 				}
 				else
 				{
@@ -86,10 +104,27 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 				data->scrolling[0] += io.MouseDelta.x;
 				data->scrolling[1] += io.MouseDelta.y;
 			}
-      if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Left, mouse_threshold_for_pan) && data->m_bIsDragCurvePoint)
+      if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Left, mouse_threshold_for_pan))
       {
-        data->points[data->m_dragPointIdx] = mouse_pos_in_canvas;
-				data->m_bReCalculate = true;
+				if (data->m_bIsDragCurvePoint)
+				{
+					data->points[data->m_dragPointIdx] = mouse_pos_in_canvas;
+					data->m_bReCalculate = true;
+				}
+				else if (data->m_bIsDragLeftTangentPoint)
+				{
+					double t0, t1;
+					int idx = 2 * data->m_tangentLineSelectedPointIdx - 1;
+					calDerivativeByHandle(data->points[data->m_tangentLineSelectedPointIdx], data->m_leftTangentEndPoint, t1, data->m_cubicSplineTangentVecLength[idx]);
+				}
+				else if (data->m_bIsDragRightTangentPoint)
+				{
+
+				}
+				else
+				{
+
+				}
       }
       
 
@@ -141,11 +176,23 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
       }
 
 			drawCubicSpline(data->m_cubicSplineInterpolationPoints, origin, draw_list);
-			if (data->m_bTangentDisplayed && data->m_tangentLineSelectedPointIdx < data->m_tangentLineSelectedPointIdx < data->points.size())
+			
+			// Draw tangent line if needed
+			if (data->m_bTangentDisplayed &&  data->m_tangentLineSelectedPointIdx < data->points.size())
 			{
 				calAllPointTangentInfo(data->points, data->m_cubicSplineTangentVec, data->m_cubicSplineCofficients);
-				drawBothTangentLine(data->m_cubicSplineTangentVec, data->points, data->m_tangentLineSelectedPointIdx,
-					data->m_cubicSplineTangentVecLength, origin, draw_list, data->m_tangentLinePointWidth, data->m_tangentLinePointHeight);
+				if (data->m_tangentLineSelectedPointIdx > 0)
+				{
+					data->m_bIsLeftTangentDisplayed = true;
+					calTangentEndPoint(data->m_cubicSplineTangentVec, data->points[data->m_tangentLineSelectedPointIdx], data->m_tangentLineSelectedPointIdx, data->m_cubicSplineTangentVecLength, data->m_leftTangentEndPoint, true);
+					drawSingleTangentLine(data->points[data->m_tangentLineSelectedPointIdx], data->m_leftTangentEndPoint, origin, draw_list, data->m_tangentLinePointWidth, data->m_tangentLinePointHeight);
+				}
+				if (data->m_tangentLineSelectedPointIdx < data->points.size() - 1)
+				{
+					data->m_bIsRightTangentDisplayed = true;
+					calTangentEndPoint(data->m_cubicSplineTangentVec, data->points[data->m_tangentLineSelectedPointIdx], data->m_tangentLineSelectedPointIdx, data->m_cubicSplineTangentVecLength, data->m_rightTangentEndPoint, false);
+					drawSingleTangentLine(data->points[data->m_tangentLineSelectedPointIdx], data->m_rightTangentEndPoint, origin, draw_list, data->m_tangentLinePointWidth, data->m_tangentLinePointHeight);
+				}
 			}
 			data->m_bReCalculate = false;
 			draw_list->PopClipRect();
@@ -273,33 +320,25 @@ void CanvasSystem::drawCubicSpline(const std::vector<std::vector<Ubpa::pointf2>>
 	}
 }
 
-//获取切线信息，pointIdx表示当前点在points中的索引，vecLength表示切线的长度，origin表示画布原点坐标，draw_list表示ImDrawList对象，rectWidth和rectHeight表示切线端点矩形的宽和高
-void CanvasSystem::drawBothTangentLine(const std::vector<Ubpa::vecf2>& tangentVec, const std::vector<Ubpa::pointf2>& points, int pointIdx, const std::vector<double>& vecLength, const ImVec2& origin, ImDrawList* draw_list, double rectWidth, double rectHeight)
-{
-	if (pointIdx < 0 || pointIdx >= points.size())
-	{
-		return;
-	}
-	if (pointIdx > 0 && 2 * pointIdx - 1 < tangentVec.size())
-	{
-		drawSingleTangentLine(tangentVec[2 * pointIdx - 1], points[pointIdx], vecLength[2 * pointIdx - 1], origin, true, draw_list, rectWidth, rectHeight);
-	}
-	if (pointIdx < points.size() - 1 && 2 * pointIdx < tangentVec.size())
-	{
-		drawSingleTangentLine(tangentVec[2 * pointIdx], points[pointIdx], vecLength[2 * pointIdx], origin, false, draw_list, rectWidth, rectHeight);
-	}
-}
+////获取切线信息，pointIdx表示当前点在points中的索引，vecLength表示切线的长度，origin表示画布原点坐标，draw_list表示ImDrawList对象，rectWidth和rectHeight表示切线端点矩形的宽和高
+//void CanvasSystem::drawBothTangentLine(const std::vector<Ubpa::vecf2>& tangentVec, const std::vector<Ubpa::pointf2>& points, int pointIdx, const std::vector<double>& vecLength, const ImVec2& origin, ImDrawList* draw_list, double rectWidth, double rectHeight)
+//{
+//	if (pointIdx < 0 || pointIdx >= points.size())
+//	{
+//		return;
+//	}
+//	if (pointIdx > 0 && 2 * pointIdx - 1 < tangentVec.size())
+//	{
+//		drawSingleTangentLine(tangentVec[2 * pointIdx - 1], points[pointIdx], vecLength[2 * pointIdx - 1], origin, true, draw_list, rectWidth, rectHeight);
+//	}
+//	if (pointIdx < points.size() - 1 && 2 * pointIdx < tangentVec.size())
+//	{
+//		drawSingleTangentLine(tangentVec[2 * pointIdx], points[pointIdx], vecLength[2 * pointIdx], origin, false, draw_list, rectWidth, rectHeight);
+//	}
+//}
 
-//根据切线信息绘制切线，isLeftPoint表示当前点是曲线段的左端点还是右端点
-void CanvasSystem::drawSingleTangentLine(const Ubpa::vecf2 tangentVec, const Ubpa::pointf2& point, double length, const ImVec2& origin, bool isRightPoint, ImDrawList* draw_list, double rectWidth, double rectHeight)
+void CanvasSystem::drawSingleTangentLine(const Ubpa::pointf2& point, const Ubpa::pointf2& endPoint, const ImVec2& origin, ImDrawList* draw_list, double rectWidth, double rectHeight)
 {
-	Ubpa::vecf2 vec = tangentVec / tangentVec.norm() * length * sqrt(2);
-	if (isRightPoint)
-	{
-    vec[0] = -vec[0];
-    vec[1] = -vec[1];
-	}
-  Ubpa::pointf2 endPoint = point + vec;
   draw_list->AddLine(ImVec2(origin.x + point[0], origin.y + point[1]), ImVec2(origin.x + endPoint[0], origin.y + endPoint[1]), IM_COL32(255, 255, 0, 255));
   ImVec2 p_min = endPoint + ImVec2(-rectWidth / 2.0, -rectHeight / 2.0);
   ImVec2 p_max = endPoint + ImVec2(rectWidth / 2.0, rectHeight / 2.0);
@@ -360,4 +399,26 @@ void CanvasSystem::calDerivativeByHandle(const Ubpa::pointf2& p0, const Ubpa::po
 	}
 	length = vec.norm();
 	t = vec[1] / vec[0];
+}
+
+void CanvasSystem::calTangentEndPoint(const std::vector<Ubpa::vecf2>& tangentVec, const Ubpa::pointf2& points, int pointIdx, const std::vector<double>& vecLength, Ubpa::pointf2& tangentEndPoint, bool isLeftTangent)
+{
+
+	int tangentIdx = isLeftTangent ? 2 * pointIdx - 1 : 2 * pointIdx;
+	if (tangentIdx < 0 || tangentIdx >= tangentVec.size())
+	{
+		return;
+	}
+	Ubpa::vecf2 vec = tangentVec[tangentIdx] / tangentVec[tangentIdx].norm() * vecLength[tangentIdx] * sqrt(2);
+	if (isLeftTangent)
+	{
+		vec[0] = -vec[0];
+		vec[1] = -vec[1];
+	}
+	tangentEndPoint = points + vec;
+}
+
+void CanvasSystem::calDerivativeByCoefficient(const CubicPolynomialCofficient& coefficient, double& t, bool isLeft)
+{
+	t = 3 * coefficient.a * t * t + 2 * coefficient.b * t + coefficient.c;
 }

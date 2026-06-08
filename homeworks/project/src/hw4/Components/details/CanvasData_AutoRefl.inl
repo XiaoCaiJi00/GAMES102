@@ -13,7 +13,7 @@ struct Ubpa::USRefl::TypeInfo<CanvasData> :
 #endif
     static constexpr AttrList attrs = {};
     static constexpr FieldList fields = {
-        Field {TSTR("points"), &Type::points},
+        Field {TSTR("points"), &Type::m_points},
         Field {TSTR("scrolling"), &Type::scrolling, AttrList {
             Attr {TSTR(UMeta::initializer), []()->Ubpa::valf2{ return { 0.f,0.f }; }},
         }},

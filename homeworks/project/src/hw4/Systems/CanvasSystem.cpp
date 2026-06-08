@@ -5,6 +5,7 @@
 using namespace Ubpa;
 
 static const double INIT_TANGENT_VEC_LENGTH = 30.0;
+static const double TANGENT_VEC_SCALE = 10.0;
 
 void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 	schedule.RegisterCommand([](Ubpa::UECS::World* w) {
@@ -50,9 +51,9 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 
 			if (is_hovered && ImGui::IsMouseDown(ImGuiMouseButton_Left))
 			{
-				for (int i = 0; i < data->points.size(); i++)
+				for (int i = 0; i < data->m_points.size(); i++)
 				{
-					if ((mouse_pos_in_canvas - data->points[i]).norm() < data->m_pointRadius)
+					if ((mouse_pos_in_canvas - data->m_points[i]).norm() < data->m_pointRadius)
 					{
 						data->m_dragPointIdx = i;
 						data->m_bIsDragCurvePoint = true;
@@ -65,7 +66,7 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 				{
 					if (data->m_bIsLeftTangentDisplayed)
 					{
-						if ((mouse_pos_in_canvas - data->m_leftTangentEndPoint).norm() < data->m_pointRadius)
+						if ((mouse_pos_in_canvas - data->m_leftTangentEndPoint).norm() < 40)
 						{
 							data->m_bIsDragLeftTangentPoint = true;
 						}
@@ -75,8 +76,8 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 						}
 						else
 						{
-							data->m_bIsDragLeftTangentPoint = false;
-							data->m_bIsDragRightTangentPoint = false;
+							//data->m_bIsDragLeftTangentPoint = false;
+							//data->m_bIsDragRightTangentPoint = false;
 						}
 					}
 				}
@@ -89,9 +90,13 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 				{
 					data->m_bIsDragCurvePoint = false;
 				}
+				else if (data->m_bIsDragLeftTangentPoint || data->m_bIsDragRightTangentPoint)
+				{
+					data->m_bIsDragLeftTangentPoint = data->m_bIsDragRightTangentPoint = false;
+				}
 				else
 				{
-					data->points.push_back(mouse_pos_in_canvas);
+					data->m_points.push_back(mouse_pos_in_canvas);
 					data->m_bReCalculate = true;
 				}
 			}
@@ -108,18 +113,48 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
       {
 				if (data->m_bIsDragCurvePoint)
 				{
-					data->points[data->m_dragPointIdx] = mouse_pos_in_canvas;
+					data->m_points[data->m_dragPointIdx] = mouse_pos_in_canvas;
 					data->m_bReCalculate = true;
 				}
 				else if (data->m_bIsDragLeftTangentPoint)
 				{
-					double t0, t1;
-					int idx = 2 * data->m_tangentLineSelectedPointIdx - 1;
-					calDerivativeByHandle(data->points[data->m_tangentLineSelectedPointIdx], data->m_leftTangentEndPoint, t1, data->m_cubicSplineTangentVecLength[idx]);
+					data->m_leftTangentEndPoint = mouse_pos_in_canvas;
+					int idx = data->m_tangentLineSelectedPointIdx;
+					Ubpa::vecf2 handle = data->m_points[idx] - data->m_leftTangentEndPoint;
+					calLeftCoefficientByHandle(data->m_points, idx, data->m_tParams, handle,
+																	data->m_cubicSplineXCofficients[idx - 1],
+																	data->m_cubicSplineYCofficients[idx - 1]);
+					calCubicSplineInterpolationPointsForSegment(data->m_tParams[idx - 1], data->m_tParams[idx],
+																											data->m_cubicSplineXCofficients[idx - 1], data->m_cubicSplineYCofficients[idx - 1],
+																											data->m_cubicSplineInterpolationPoints[idx - 1]);
+
+					if (idx < data->m_points.size() - 1)
+					{
+						calRightCoefficientByHandle(data->m_points, idx, data->m_tParams, handle, data->m_cubicSplineXCofficients[idx], data->m_cubicSplineYCofficients[idx]);
+						calCubicSplineInterpolationPointsForSegment(data->m_tParams[idx], data->m_tParams[idx + 1],
+																												data->m_cubicSplineXCofficients[idx], data->m_cubicSplineYCofficients[idx],
+																												data->m_cubicSplineInterpolationPoints[idx]);
+					}
+ 
 				}
 				else if (data->m_bIsDragRightTangentPoint)
 				{
-
+					data->m_rightTangentEndPoint = mouse_pos_in_canvas;
+					int idx = data->m_tangentLineSelectedPointIdx;
+					Ubpa::vecf2 handle = data->m_rightTangentEndPoint - data->m_points[idx];
+					calRightCoefficientByHandle(data->m_points, idx, data->m_tParams, handle, data->m_cubicSplineXCofficients[idx], data->m_cubicSplineYCofficients[idx]);
+					calCubicSplineInterpolationPointsForSegment(data->m_tParams[idx], data->m_tParams[idx + 1],
+						data->m_cubicSplineXCofficients[idx], data->m_cubicSplineYCofficients[idx],
+						data->m_cubicSplineInterpolationPoints[idx]);
+					if (idx > 0)
+					{
+						calLeftCoefficientByHandle(data->m_points, idx, data->m_tParams, handle,
+																			 data->m_cubicSplineXCofficients[idx - 1],
+																			 data->m_cubicSplineYCofficients[idx - 1]);
+					calCubicSplineInterpolationPointsForSegment(data->m_tParams[idx - 1], data->m_tParams[idx],
+																											data->m_cubicSplineXCofficients[idx - 1], data->m_cubicSplineYCofficients[idx - 1],
+																											data->m_cubicSplineInterpolationPoints[idx - 1]);
+					}
 				}
 				else
 				{
@@ -134,29 +169,26 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 				ImGui::OpenPopupContextItem("context");
 			if (ImGui::BeginPopup("context"))
 			{
-				if (ImGui::MenuItem("Remove one", NULL, false, data->points.size() > 0)) 
+				if (ImGui::MenuItem("Remove one", NULL, false, data->m_points.size() > 0)) 
 				{ 
-					data->points.resize(data->points.size() - 1); 
+					data->m_points.resize(data->m_points.size() - 1); 
 					data->m_bReCalculate = true;
 				}
-				if (ImGui::MenuItem("Remove all", NULL, false, data->points.size() > 0)) 
+				if (ImGui::MenuItem("Remove all", NULL, false, data->m_points.size() > 0)) 
 				{ 
-					data->points.clear(); 
+					data->m_points.clear(); 
 					data->m_bReCalculate = true;
 				}
-				if (ImGui::MenuItem("hide tangentLine", NULL, false, data->points.size() > 0)) { data->m_bTangentDisplayed = false; }
+				if (ImGui::MenuItem("hide tangentLine", NULL, false, data->m_points.size() > 0)) { data->m_bTangentDisplayed = false; }
 				ImGui::EndPopup();
 			}
 
 			if (data->m_bReCalculate)
 			{
 				data->m_bTangentDisplayed = false;
-				calCubicSplineCofficient(data->points, data->m_cubicSplineCofficients);
-				calCubicSplineInterpolationPoints(data->points, data->m_cubicSplineCofficients, data->m_cubicSplineInterpolationPoints);
-				if (data->points.size() > 1)
-				{
-					data->m_cubicSplineTangentVecLength.assign(2 * data->points.size() - 2, INIT_TANGENT_VEC_LENGTH);
-				}
+				uniformParameterization(data->m_points, data->m_tParams);
+				calCubicSplineParamCofficient(data->m_points, data->m_tParams, data->m_cubicSplineXCofficients, data->m_cubicSplineYCofficients);
+				calCubicSplineInterpolationPoints(data->m_tParams, data->m_cubicSplineXCofficients, data->m_cubicSplineYCofficients, data->m_cubicSplineInterpolationPoints);
 			}
 
 
@@ -170,29 +202,34 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 				for (float y = fmodf(data->scrolling[1], GRID_STEP); y < canvas_sz.y; y += GRID_STEP)
 					draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y), ImVec2(canvas_p1.x, canvas_p0.y + y), IM_COL32(200, 200, 200, 40));
 			}
-      for (int n = 0; n < data->points.size(); ++n)
+      for (int n = 0; n < data->m_points.size(); ++n)
       {
-        draw_list->AddCircleFilled(ImVec2(origin.x + data->points[n][0], origin.y + data->points[n][1]), data->m_pointRadius, IM_COL32(255, 0, 0, 255));
+        draw_list->AddCircleFilled(ImVec2(origin.x + data->m_points[n][0], origin.y + data->m_points[n][1]), data->m_pointRadius, IM_COL32(255, 0, 0, 255));
       }
 
 			drawCubicSpline(data->m_cubicSplineInterpolationPoints, origin, draw_list);
 			
 			// Draw tangent line if needed
-			if (data->m_bTangentDisplayed &&  data->m_tangentLineSelectedPointIdx < data->points.size())
+			if (data->m_bTangentDisplayed &&  data->m_tangentLineSelectedPointIdx < data->m_points.size())
 			{
-				calAllPointTangentInfo(data->points, data->m_cubicSplineTangentVec, data->m_cubicSplineCofficients);
+				int idx = data->m_tangentLineSelectedPointIdx;
 				if (data->m_tangentLineSelectedPointIdx > 0)
 				{
 					data->m_bIsLeftTangentDisplayed = true;
-					calTangentEndPoint(data->m_cubicSplineTangentVec, data->points[data->m_tangentLineSelectedPointIdx], data->m_tangentLineSelectedPointIdx, data->m_cubicSplineTangentVecLength, data->m_leftTangentEndPoint, true);
-					drawSingleTangentLine(data->points[data->m_tangentLineSelectedPointIdx], data->m_leftTangentEndPoint, origin, draw_list, data->m_tangentLinePointWidth, data->m_tangentLinePointHeight);
+					Ubpa::vecf2 handleVec;
+					calTangentHandle(data->m_tParams[idx], data->m_cubicSplineXCofficients[idx - 1], data->m_cubicSplineYCofficients[idx - 1], handleVec, true);
+					data->m_leftTangentEndPoint = data->m_points[idx] + handleVec;
+					drawSingleTangentLine(data->m_points[idx], data->m_leftTangentEndPoint, origin, draw_list, data->m_tangentLinePointWidth, data->m_tangentLinePointHeight);
 				}
-				if (data->m_tangentLineSelectedPointIdx < data->points.size() - 1)
+				if (data->m_tangentLineSelectedPointIdx < data->m_points.size() - 1)
 				{
 					data->m_bIsRightTangentDisplayed = true;
-					calTangentEndPoint(data->m_cubicSplineTangentVec, data->points[data->m_tangentLineSelectedPointIdx], data->m_tangentLineSelectedPointIdx, data->m_cubicSplineTangentVecLength, data->m_rightTangentEndPoint, false);
-					drawSingleTangentLine(data->points[data->m_tangentLineSelectedPointIdx], data->m_rightTangentEndPoint, origin, draw_list, data->m_tangentLinePointWidth, data->m_tangentLinePointHeight);
+					Ubpa::vecf2 handleVec;
+					calTangentHandle(data->m_tParams[idx], data->m_cubicSplineXCofficients[idx], data->m_cubicSplineYCofficients[idx], handleVec, false);
+					data->m_rightTangentEndPoint = data->m_points[idx] + handleVec;
+					drawSingleTangentLine(data->m_points[idx], data->m_rightTangentEndPoint, origin, draw_list, data->m_tangentLinePointWidth, data->m_tangentLinePointHeight);
 				}
+
 			}
 			data->m_bReCalculate = false;
 			draw_list->PopClipRect();
@@ -202,7 +239,31 @@ void CanvasSystem::OnUpdate(Ubpa::UECS::Schedule& schedule) {
 	});
 }
 
-void CanvasSystem::calCubicSplineCofficient(const std::vector<Ubpa::pointf2>& points, std::vector<CubicPolynomialCofficient>& coefficient)
+void CanvasSystem::calCubicSplineParamCofficient(const std::vector<Ubpa::pointf2>& points, const std::vector<double>& tParams, std::vector<CubicPolynomialCofficient>& xCoefficient, std::vector<CubicPolynomialCofficient>& yCoefficient)
+{
+	int n = points.size();
+	if (n < 2)
+	{
+		return;
+	}
+	std::vector<Ubpa::pointf2> xParamPoints(n);
+	for (int i = 0; i < n; ++i)
+	{
+		xParamPoints[i][0] = tParams[i];
+		xParamPoints[i][1] = points[i][0];
+	}
+	calCubicSplineSingleCofficient(xParamPoints, xCoefficient);
+
+	std::vector<Ubpa::pointf2> yParamPoints(n);
+	for (int i = 0; i < n; ++i)
+	{
+		yParamPoints[i][0] = tParams[i];
+		yParamPoints[i][1] = points[i][1];
+	}
+	calCubicSplineSingleCofficient(yParamPoints, yCoefficient);
+}
+
+void CanvasSystem::calCubicSplineSingleCofficient(const std::vector<Ubpa::pointf2>& points, std::vector<CubicPolynomialCofficient>& coefficient)
 {
 	coefficient.clear();
 	int pointCount = points.size();
@@ -244,22 +305,22 @@ void CanvasSystem::calCubicSplineCofficient(const std::vector<Ubpa::pointf2>& po
 		}
 		M.segment(1, pointCount - 2) = A.colPivHouseholderQr().solve(b);
 	}
-	
+
 
 	for (int i = 0; i < pointCount - 1; i++)
 	{
 		double h = points[i + 1][0] - points[i][0];
 		CubicPolynomialCofficient coeff;
 		coeff.a = (M(i + 1) - M(i)) / (6.0 * h);
-		coeff.b = (M(i) * points[i + 1][0] - M(i + 1) * points[i][0]) / (2.0 * h);	
+		coeff.b = (M(i) * points[i + 1][0] - M(i + 1) * points[i][0]) / (2.0 * h);
 		coeff.c = -M(i) * points[i + 1][0] * points[i + 1][0] / (2.0 * h) +
-							 M(i + 1) * points[i][0] * points[i][0] / (2.0 * h) + 
-							(points[i + 1][1] - points[i][1]) / h + 
-							(M(i) - M(i + 1)) * h / 6.0;
+			M(i + 1) * points[i][0] * points[i][0] / (2.0 * h) +
+			(points[i + 1][1] - points[i][1]) / h +
+			(M(i) - M(i + 1)) * h / 6.0;
 		coeff.d = M(i) * points[i + 1][0] * points[i + 1][0] * points[i + 1][0] / (6.0 * h) -
-							M(i + 1) * points[i][0] * points[i][0] * points[i][0] / (6.0 * h) -
-							(points[i + 1][1] / h - M(i + 1) * h / 6.0) * points[i][0] +
-							(points[i][1] / h - M(i) * h / 6.0) * points[i + 1][0];
+			M(i + 1) * points[i][0] * points[i][0] * points[i][0] / (6.0 * h) -
+			(points[i + 1][1] / h - M(i + 1) * h / 6.0) * points[i][0] +
+			(points[i][1] / h - M(i) * h / 6.0) * points[i + 1][0];
 		coefficient.push_back(coeff);
 	}
 }
@@ -320,23 +381,6 @@ void CanvasSystem::drawCubicSpline(const std::vector<std::vector<Ubpa::pointf2>>
 	}
 }
 
-////获取切线信息，pointIdx表示当前点在points中的索引，vecLength表示切线的长度，origin表示画布原点坐标，draw_list表示ImDrawList对象，rectWidth和rectHeight表示切线端点矩形的宽和高
-//void CanvasSystem::drawBothTangentLine(const std::vector<Ubpa::vecf2>& tangentVec, const std::vector<Ubpa::pointf2>& points, int pointIdx, const std::vector<double>& vecLength, const ImVec2& origin, ImDrawList* draw_list, double rectWidth, double rectHeight)
-//{
-//	if (pointIdx < 0 || pointIdx >= points.size())
-//	{
-//		return;
-//	}
-//	if (pointIdx > 0 && 2 * pointIdx - 1 < tangentVec.size())
-//	{
-//		drawSingleTangentLine(tangentVec[2 * pointIdx - 1], points[pointIdx], vecLength[2 * pointIdx - 1], origin, true, draw_list, rectWidth, rectHeight);
-//	}
-//	if (pointIdx < points.size() - 1 && 2 * pointIdx < tangentVec.size())
-//	{
-//		drawSingleTangentLine(tangentVec[2 * pointIdx], points[pointIdx], vecLength[2 * pointIdx], origin, false, draw_list, rectWidth, rectHeight);
-//	}
-//}
-
 void CanvasSystem::drawSingleTangentLine(const Ubpa::pointf2& point, const Ubpa::pointf2& endPoint, const ImVec2& origin, ImDrawList* draw_list, double rectWidth, double rectHeight)
 {
   draw_list->AddLine(ImVec2(origin.x + point[0], origin.y + point[1]), ImVec2(origin.x + endPoint[0], origin.y + endPoint[1]), IM_COL32(255, 255, 0, 255));
@@ -345,10 +389,10 @@ void CanvasSystem::drawSingleTangentLine(const Ubpa::pointf2& point, const Ubpa:
   draw_list->AddRectFilled(ImVec2(origin.x + p_min.x, origin.y + p_min.y), ImVec2(origin.x + p_max.x, origin.y + p_max.y), IM_COL32(255, 255, 0, 255));
 }
 
-void CanvasSystem::calCubicSplineInterpolationPoints(const std::vector<Ubpa::pointf2>& points, const std::vector<CubicPolynomialCofficient>& coefficient, std::vector<std::vector<Ubpa::pointf2>>& interpolationPoints)
+void CanvasSystem::calCubicSplineInterpolationPoints(const std::vector<double>& tParams, const std::vector<CubicPolynomialCofficient>& xCoefficient, const std::vector<CubicPolynomialCofficient>& yCoefficient, std::vector<std::vector<Ubpa::pointf2>>& interpolationPoints)
 {
   interpolationPoints.clear();
-  int pointCount = points.size();
+  int pointCount = tParams.size();
 	if (pointCount < 2)
 	{
 		return;
@@ -356,19 +400,20 @@ void CanvasSystem::calCubicSplineInterpolationPoints(const std::vector<Ubpa::poi
 	for (int i = 0; i < pointCount - 1; i++)
 	{
 		std::vector<Ubpa::pointf2> segmentInterpolationPoints;
-		calCubicSplineInterpolationPointsForSegment(points[i], points[i + 1], coefficient[i], segmentInterpolationPoints);
+		calCubicSplineInterpolationPointsForSegment(tParams[i], tParams[i + 1], xCoefficient[i], yCoefficient[i], segmentInterpolationPoints);
 		interpolationPoints.push_back(segmentInterpolationPoints);
   }
 }
 
-void CanvasSystem::calCubicSplineInterpolationPointsForSegment(const Ubpa::pointf2& p0, const Ubpa::pointf2& p1, const CubicPolynomialCofficient& coefficient, std::vector<Ubpa::pointf2>& interpolationPoints)
+void CanvasSystem::calCubicSplineInterpolationPointsForSegment(double param1, double param2, const CubicPolynomialCofficient& xCoefficient, const CubicPolynomialCofficient& yCoefficient, std::vector<Ubpa::pointf2>& interpolationPoints)
 {
 	interpolationPoints.clear();
-	double step = 1.0;
+	double step = 0.001;
 
-	for (double x = p0[0]; x <= p1[0]; x += step)
+	for (double t = param1; t <= param2; t += step)
 	{
-		double y = coefficient.a * x * x * x + coefficient.b * x * x + coefficient.c * x + coefficient.d;
+		double x = xCoefficient.a * t * t * t + xCoefficient.b * t * t + xCoefficient.c * t + xCoefficient.d;
+		double y = yCoefficient.a * t * t * t + yCoefficient.b * t * t + yCoefficient.c * t + yCoefficient.d;
 		interpolationPoints.push_back(Ubpa::pointf2(x, y));
 	}
 }
@@ -389,7 +434,7 @@ void CanvasSystem::calCofficientForSegment(const Ubpa::pointf2& p0, const Ubpa::
 		coefficient.d = x[3];
 }
 
-void CanvasSystem::calDerivativeByHandle(const Ubpa::pointf2& p0, const Ubpa::pointf2& handlePoint, double& t, double length)
+void CanvasSystem::calDerivativeByHandle(const Ubpa::pointf2& p0, const Ubpa::pointf2& handlePoint, double& t)
 {
 	Ubpa::vecf2 vec = handlePoint - p0;
 	if (vec[0] < 0)
@@ -397,7 +442,6 @@ void CanvasSystem::calDerivativeByHandle(const Ubpa::pointf2& p0, const Ubpa::po
 		vec[0] = -vec[0];
 		vec[1] = -vec[1];
 	}
-	length = vec.norm();
 	t = vec[1] / vec[0];
 }
 
@@ -409,7 +453,8 @@ void CanvasSystem::calTangentEndPoint(const std::vector<Ubpa::vecf2>& tangentVec
 	{
 		return;
 	}
-	Ubpa::vecf2 vec = tangentVec[tangentIdx] / tangentVec[tangentIdx].norm() * vecLength[tangentIdx] * sqrt(2);
+	Ubpa::vecf2 vec1 = tangentVec[tangentIdx];
+	Ubpa::vecf2 vec = tangentVec[tangentIdx] / vec1.norm() * vecLength[tangentIdx] * sqrt(2);
 	if (isLeftTangent)
 	{
 		vec[0] = -vec[0];
@@ -418,7 +463,67 @@ void CanvasSystem::calTangentEndPoint(const std::vector<Ubpa::vecf2>& tangentVec
 	tangentEndPoint = points + vec;
 }
 
-void CanvasSystem::calDerivativeByCoefficient(const CubicPolynomialCofficient& coefficient, double& t, bool isLeft)
+double CanvasSystem::calDerivativeOnParam(double tParam, const CubicPolynomialCofficient& coefficient)
 {
-	t = 3 * coefficient.a * t * t + 2 * coefficient.b * t + coefficient.c;
+	return 3 * coefficient.a * tParam * tParam + 2 * coefficient.b * tParam + coefficient.c;
+}
+
+void CanvasSystem::calTangentHandle(double tParam, const CubicPolynomialCofficient& xCoefficient, const CubicPolynomialCofficient& yCoefficient, Ubpa::vecf2& handleVec, bool isLeft)
+{
+		handleVec[0] = calDerivativeOnParam(tParam, xCoefficient);
+		handleVec[1] = calDerivativeOnParam(tParam, yCoefficient);
+		if (isLeft)
+		{
+			handleVec[0] = -handleVec[0];
+			handleVec[1] = -handleVec[1];
+		}
+		//等比缩小
+		handleVec = handleVec / TANGENT_VEC_SCALE;
+}
+void CanvasSystem::calLeftCoefficientByHandle(const std::vector<Ubpa::pointf2>& points, int idx, const std::vector<double>& params, const Ubpa::vecf2& handle, CubicPolynomialCofficient& xCoefficient, CubicPolynomialCofficient& yCoefficient)
+{
+	Ubpa::vecf2 realHandle = handle * TANGENT_VEC_SCALE;
+	Ubpa::pointf2 currentPoint = points[idx];
+	Ubpa::pointf2 prePoint = points[idx - 1];
+	Ubpa::pointf2 preParamX(params[idx - 1], prePoint[0]);
+	Ubpa::pointf2 curParamX(params[idx], currentPoint[0]);
+	double preXDerivate = calDerivativeOnParam(preParamX[0], xCoefficient);
+	calCofficientForSegment(preParamX, curParamX, preXDerivate, realHandle[0], xCoefficient);
+
+	Ubpa::pointf2 preParamY(params[idx - 1], prePoint[1]);
+	Ubpa::pointf2 curParamY(params[idx], currentPoint[1]);
+	double preYDerivate = calDerivativeOnParam(preParamY[0], yCoefficient);
+	calCofficientForSegment(preParamY, curParamY, preYDerivate, realHandle[1], yCoefficient);
+}
+void CanvasSystem::calRightCoefficientByHandle(const std::vector<Ubpa::pointf2>& points, int idx, const std::vector<double>& params, const Ubpa::vecf2& handle, CubicPolynomialCofficient& xCoefficient, CubicPolynomialCofficient& yCoefficient)
+{
+	Ubpa::vecf2 realHandle = handle * TANGENT_VEC_SCALE;
+	Ubpa::pointf2 currentPoint = points[idx];
+	Ubpa::pointf2 nextPoint = points[idx + 1];
+	Ubpa::pointf2 nextParamX(params[idx + 1], nextPoint[0]);
+	Ubpa::pointf2 curParamX(params[idx], currentPoint[0]);
+	double nextXDerivate = calDerivativeOnParam(nextParamX[0], xCoefficient);
+	calCofficientForSegment(curParamX, nextParamX, realHandle[0], nextXDerivate, xCoefficient);
+
+	Ubpa::pointf2 nextParamY(params[idx + 1], nextPoint[1]);
+	Ubpa::pointf2 curParamY(params[idx], currentPoint[1]);
+	double nextYDerivate = calDerivativeOnParam(nextParamY[0], yCoefficient);
+	calCofficientForSegment(curParamY, nextParamY, realHandle[1], nextYDerivate, yCoefficient);
+}
+void CanvasSystem::uniformParameterization(const std::vector<Ubpa::pointf2>& input, std::vector<double>& tParam)
+{
+	tParam.clear();
+	int n = input.size();
+	if (n < 2)
+	{
+		return;
+	}
+	tParam.resize(n);
+	tParam[0] = 0;
+	tParam[n - 1] = 1;
+	double step = 1.0 / (n - 1);
+	for (int i = 1; i < n - 1; ++i)
+	{
+		tParam[i] = tParam[i - 1] + step;
+	}
 }

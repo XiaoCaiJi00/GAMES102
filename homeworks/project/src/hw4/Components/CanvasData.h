@@ -10,15 +10,16 @@ struct CubicPolynomialCofficient {
 };
 
 struct CanvasData {
-	std::vector<Ubpa::pointf2> points;
+	std::vector<Ubpa::pointf2> m_points;
 	Ubpa::valf2 scrolling{ 0.f,0.f };
 	bool opt_enable_grid{ true };
 	bool opt_enable_context_menu{ true };
 
   std::vector<CubicPolynomialCofficient> m_cubicSplineCofficients;
+  std::vector<CubicPolynomialCofficient> m_cubicSplineXCofficients;
+  std::vector<CubicPolynomialCofficient> m_cubicSplineYCofficients;
   std::vector<std::vector<Ubpa::pointf2>> m_cubicSplineInterpolationPoints;
-  std::vector<Ubpa::vecf2> m_cubicSplineTangentVec;
-  std::vector<double> m_cubicSplineTangentVecLength;
+  std::vector<double> m_tParams;
   Ubpa::pointf2 m_leftTangentEndPoint;
   Ubpa::pointf2 m_rightTangentEndPoint;
 	std::vector<Ubpa::pointf2> m_tangentPoints;
@@ -39,8 +40,8 @@ struct CanvasData {
 
   //绘制数据属性
   double m_pointRadius = 5.0;
-  double m_tangentLinePointWidth = 6.0;
-  double m_tangentLinePointHeight = 6.0;
+  double m_tangentLinePointWidth = 10;
+  double m_tangentLinePointHeight = 10;
 };
 
 #include "details/CanvasData_AutoRefl.inl"
